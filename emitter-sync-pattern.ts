@@ -4,7 +4,7 @@ import { EventEmitter } from "./emitter";
 import { EventDelayedRepository } from "./event-repository";
 import { EventStatistics } from "./event-statistics";
 import { ResultsTester } from "./results-tester";
-import { triggerRandomly } from "./utils";
+import { awaitTimeout, triggerRandomly } from "./utils";
 
 const MAX_EVENTS = 1000;
 
@@ -51,8 +51,6 @@ function init() {
 */
 
 class EventHandler extends EventStatistics<EventName> {
-  // Feel free to edit this class
-
   repository: EventRepository;
 
   constructor(emitter: EventEmitter<EventName>, repository: EventRepository) {
@@ -60,21 +58,51 @@ class EventHandler extends EventStatistics<EventName> {
     this.repository = repository;
 
     emitter.subscribe(EventName.EventA, () =>
-      this.repository.saveEventData(EventName.EventA, 1)
+      this.handleEvent(EventName.EventA)
     );
+    emitter.subscribe(EventName.EventB, () =>
+      this.handleEvent(EventName.EventB)
+    );
+  }
+
+  private async handleEvent(eventName: EventName) {
+    this.incrementEventCount(eventName);
+    await this.syncWithRepository(eventName);
+  }
+
+  private incrementEventCount(eventName: EventName) {
+    this.setStats(eventName, this.getStats(eventName) + 1);
+  }
+
+  private async syncWithRepository(eventName: EventName) {
+    let retryCount = 0;
+    const maxRetries = 5;
+
+    while (retryCount < maxRetries) {
+      try {
+        await this.repository.saveEventData(eventName, 1);
+        break;
+      } catch (error) {
+        retryCount++;
+        if (retryCount >= maxRetries) {
+          console.error(
+            `Failed to sync ${eventName} after ${maxRetries} retries`
+          );
+        } else {
+          console.warn(`Retry ${retryCount} for ${eventName}: ${error}`);
+          await awaitTimeout(100);
+        }
+      }
+    }
   }
 }
 
 class EventRepository extends EventDelayedRepository<EventName> {
-  // Feel free to edit this class
-
-  async saveEventData(eventName: EventName, _: number) {
+  async saveEventData(eventName: EventName, increment: number) {
     try {
-      await this.updateEventStatsBy(eventName, 1);
-      this;
+      await this.updateEventStatsBy(eventName, increment);
     } catch (e) {
-      // const _error = e as EventRepositoryError;
-      // console.warn(error);
+      throw e;
     }
   }
 }
