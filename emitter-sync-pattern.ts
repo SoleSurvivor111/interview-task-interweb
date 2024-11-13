@@ -95,7 +95,7 @@ class EventHandler extends EventStatistics<EventName> {
           console.warn(`Retry ${retryCount} for ${eventName}: ${error}`);
         }
         await awaitTimeout(retryDelay);
-        this.initialRetryDelay = Math.min(retryDelay * 2, this.maxRetryDelay);
+        retryDelay = Math.min(retryDelay * 2, this.maxRetryDelay);
       }
     }
   }
