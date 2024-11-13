@@ -52,6 +52,9 @@ function init() {
 
 class EventHandler extends EventStatistics<EventName> {
   repository: EventRepository;
+  private maxRetries = 5;
+  private initialRetryDelay = 500; // 500ms
+  private maxRetryDelay = 5000; // 5s
 
   constructor(emitter: EventEmitter<EventName>, repository: EventRepository) {
     super();
@@ -76,22 +79,23 @@ class EventHandler extends EventStatistics<EventName> {
 
   private async syncWithRepository(eventName: EventName) {
     let retryCount = 0;
-    const maxRetries = 5;
+    let retryDelay = this.initialRetryDelay;
 
-    while (retryCount < maxRetries) {
+    while (retryCount < this.maxRetries) {
       try {
         await this.repository.saveEventData(eventName, 1);
         break;
       } catch (error) {
         retryCount++;
-        if (retryCount >= maxRetries) {
+        if (retryCount >= this.maxRetries) {
           console.error(
-            `Failed to sync ${eventName} after ${maxRetries} retries`
+            `Failed to sync ${eventName} after ${this.maxRetries} retries`
           );
         } else {
           console.warn(`Retry ${retryCount} for ${eventName}: ${error}`);
-          await awaitTimeout(100);
         }
+        await awaitTimeout(retryDelay);
+        this.initialRetryDelay = Math.min(retryDelay * 2, this.maxRetryDelay);
       }
     }
   }
